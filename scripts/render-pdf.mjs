@@ -4,9 +4,9 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 const start = process.env.START_DATE || "2026-03-17";
-const title = process.env.TITLE || "薬袋式暗記シート";
+const title = process.env.TITLE || "暗記シート";
 const max = process.env.MAX_REVIEW_COUNT || "10";
-const guide = process.env.MANUAL_GUIDE || "start-dot";
+const maxNumber = process.env.MAX_NUMBER || "22";
 const page = process.env.SHOW_PAGE_NUMBER || "false";
 const gaps = process.env.GAP_DAYS || "1,3,5,8,12,17,20,21,21,21,21,21,21";
 
@@ -19,7 +19,7 @@ const url = new URL(pathToFileURL(htmlPath));
 url.searchParams.set("start", start);
 url.searchParams.set("title", title);
 url.searchParams.set("max", max);
-url.searchParams.set("guide", guide);
+url.searchParams.set("maxnum", maxNumber);
 url.searchParams.set("page", page);
 url.searchParams.set("gaps", gaps);
 url.searchParams.set("pdf", "1");
