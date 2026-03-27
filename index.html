@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>暗記スケジュール表</title>
+  <style>
+    :root {
+      --paper-width: 297mm;
+      --paper-height: 210mm;
+      --cell: 10mm; /* 1cm */
+      --cols: 24;
+      --rows: 15;
+      --grid-width: calc(var(--cols) * var(--cell));
+      --grid-height: calc(var(--rows) * var(--cell));
+      --sat: #1d4ed8;
+      --sun: #dc2626;
+      --line: #444;
+      --line-light: #999;
+      --guide: #cbd5e1;
+      --paper-shadow: 0 10px 30px rgba(0,0,0,0.12);
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #f5f7fb;
+      color: #111827;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: #4b5563;
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font: inherit;
+      background: #fff;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font: inherit;
+      cursor: pointer;
+      background: #111827;
+      color: white;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .pages {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .paper {
+      width: var(--paper-width);
+      min-height: var(--paper-height);
+      background: white;
+      box-shadow: var(--paper-shadow);
+      padding: 12mm 10mm 10mm;
+      position: relative;
+    }
+
+    .paper-title {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6mm;
+      min-height: 8mm;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(24, var(--cell));
+      grid-template-rows: repeat(15, var(--cell));
+      width: var(--grid-width);
+      height: var(--grid-height);
+      margin: 0 auto;
+      border: 0.4mm solid var(--line);
+      background: #fff;
+    }
+
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      border-right: 0.2mm solid var(--line-light);
+      border-bottom: 0.2mm solid var(--line-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      line-height: 1;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .cell.header-row { font-weight: 700; }
+    .cell.header-col { font-weight: 700; }
+    .cell.col-0 { border-right: 0.4mm solid var(--line); }
+    .cell.row-0 { border-bottom: 0.4mm solid var(--line); }
+    .cell.sat { color: var(--sat); }
+    .cell.sun { color: var(--sun); }
+
+    .cell.guide::after {
+      content: "・";
+      color: var(--guide);
+      font-size: 12px;
+      line-height: 1;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .page-no {
+      text-align: center;
+      margin-top: 4mm;
+      font-size: 10px;
+      color: #6b7280;
+      min-height: 4mm;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .no-print { display: none !important; }
+      .app {
+        max-width: none;
+        padding: 0;
+      }
+      .pages {
+        gap: 0;
+      }
+      .paper {
+        width: 297mm;
+        min-height: 210mm;
+        box-shadow: none;
+        margin: 0;
+        page-break-after: always;
+        break-after: page;
+        padding: 12mm 10mm 10mm;
+      }
+      .paper:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="controlPanel" class="panel no-print">
+      <div class="controls">
+        <div class="field">
+          <label for="startDate">開始日</label>
+          <input id="startDate" type="date" value="2026-03-17" />
+        </div>
+
+        <div class="field">
+          <label for="title">タイトル</label>
+          <input id="title" type="text" value="薬袋式暗記シート" />
+        </div>
+
+        <div class="field">
+          <label for="maxReviewCount">自動記載する回数</label>
+          <input id="maxReviewCount" type="number" min="1" max="14" value="10" />
+        </div>
+
+        <div class="field">
+          <label for="showPageNumber">ページ番号</label>
+          <select id="showPageNumber">
+            <option value="false" selected>表示しない</option>
+            <option value="true">表示する</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="manualGuide">手書きガイド</label>
+          <select id="manualGuide">
+            <option value="none">なし</option>
+            <option value="start-dot" selected>開始位置にだけ・</option>
+          </select>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="gapDays">間隔（前回から空ける日数, カンマ区切り）</label>
+          <input id="gapDays" type="text" value="1,3,5,8,12,17,20,21,21,21,21,21,21" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="renderBtn">再生成</button>
+        <button id="printBtn">印刷 / PDF保存</button>
+        <button id="shareBtn" class="secondary">URLに設定を保存</button>
+      </div>
+
+      <div class="hint">
+        静的HTMLだけで動作します。<br>
+        GitHub Pagesではブラウザ印刷でPDF保存、GitHub Actionsでは自動でPDF生成できます。
+      </div>
+    </div>
+
+    <div id="pages" class="pages"></div>
+  </div>
+
+  <script>
+    const ROWS_TOTAL = 15;
+    const COLS_TOTAL = 24;
+    const DATA_ROWS = ROWS_TOTAL - 1;
+    const DATA_COLS = COLS_TOTAL - 1;
+
+    function parseGapDays(value) {
+      return value
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(Number)
+        .filter(n => Number.isFinite(n) && n >= 0);
+    }
+
+    function normalizeDate(d) {
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function addDays(base, days) {
+      const d = normalizeDate(base);
+      d.setDate(d.getDate() + days);
+      return d;
+    }
+
+    function diffDays(a, b) {
+      const oneDay = 24 * 60 * 60 * 1000;
+      const aa = normalizeDate(a);
+      const bb = normalizeDate(b);
+      return Math.round((aa - bb) / oneDay);
+    }
+
+    function computeAllReviewStarts(startDate, gapDays, maxRows = DATA_ROWS) {
+      const starts = [normalizeDate(startDate)];
+      let current = normalizeDate(startDate);
+
+      for (const gap of gapDays) {
+        if (starts.length >= maxRows) break;
+        current = addDays(current, gap);
+        starts.push(normalizeDate(current));
+      }
+      return starts;
+    }
+
+    function pageCountForLastDate(firstDate, lastDate) {
+      const totalDays = diffDays(lastDate, firstDate) + 1;
+      return Math.max(1, Math.ceil(totalDays / DATA_COLS));
+    }
+
+    function dateHeaderText(currentDate, isFirstColOnPage) {
+      if (isFirstColOnPage || currentDate.getDate() === 1) {
+        return `${currentDate.getMonth() + 1}/${currentDate.getDate()}`;
+      }
+      return String(currentDate.getDate());
+    }
+
+    function weekdayClass(date) {
+      const day = date.getDay();
+      if (day === 6) return 'sat';
+      if (day === 0) return 'sun';
+      return '';
+    }
+
+    function cell(content = '', classes = []) {
+      const div = document.createElement('div');
+      div.className = ['cell', ...classes].join(' ');
+      div.textContent = content;
+      return div;
+    }
+
+    function buildPage({ pageIndex, startDate, title, showPageNumber, maxReviewCount, manualGuide, allReviewStarts }) {
+      const paper = document.createElement('section');
+      paper.className = 'paper';
+
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'paper-title';
+      titleDiv.textContent = title || '';
+      paper.appendChild(titleDiv);
+
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+
+      const firstDateOnPage = addDays(startDate, pageIndex * DATA_COLS);
+      const pageLastDate = addDays(firstDateOnPage, DATA_COLS - 1);
+      const autoRows = Math.min(maxReviewCount, DATA_ROWS, allReviewStarts.length);
+
+      for (let row = 0; row < ROWS_TOTAL; row++) {
+        for (let col = 0; col < COLS_TOTAL; col++) {
+          const classes = [`row-${row}`, `col-${col}`];
+
+          if (row === 0 && col === 0) {
+            classes.push('header-row', 'header-col');
+            grid.appendChild(cell('', classes));
+            continue;
+          }
+
+          if (row === 0) {
+            classes.push('header-row');
+            const currentDate = addDays(firstDateOnPage, col - 1);
+            const txt = dateHeaderText(currentDate, col === 1);
+            const wk = weekdayClass(currentDate);
+            if (wk) classes.push(wk);
+            grid.appendChild(cell(txt, classes));
+            continue;
+          }
+
+          if (col === 0) {
+            classes.push('header-col');
+            grid.appendChild(cell(`${row}回目`, classes));
+            continue;
+          }
+
+          const rowIdx = row - 1;
+          const currentDate = addDays(firstDateOnPage, col - 1);
+
+          if (rowIdx < autoRows) {
+            const rowStart = allReviewStarts[rowIdx];
+            const delta = diffDays(currentDate, rowStart);
+            grid.appendChild(cell(delta >= 0 ? String(delta + 1) : '', classes));
+          } else {
+            if (manualGuide === 'start-dot' && rowIdx < allReviewStarts.length) {
+              const rowStart = allReviewStarts[rowIdx];
+              if (rowStart >= firstDateOnPage && rowStart <= pageLastDate) {
+                const colOffset = diffDays(rowStart, firstDateOnPage);
+                if (col === colOffset + 1) classes.push('guide');
+              }
+            }
+            grid.appendChild(cell('', classes));
+          }
+        }
+      }
+
+      paper.appendChild(grid);
+
+      const pageNo = document.createElement('div');
+      pageNo.className = 'page-no';
+      pageNo.textContent = showPageNumber ? String(pageIndex + 1) : '';
+      paper.appendChild(pageNo);
+
+      return paper;
+    }
+
+    function getSettings() {
+      const startDateValue = document.getElementById('startDate').value || '2026-03-17';
+
+      return {
+        startDate: new Date(startDateValue + 'T00:00:00'),
+        startDateValue,
+        title: document.getElementById('title').value.trim(),
+        maxReviewCount: Math.max(1, Math.min(14, Number(document.getElementById('maxReviewCount').value || 10))),
+        showPageNumber: document.getElementById('showPageNumber').value === 'true',
+        manualGuide: document.getElementById('manualGuide').value,
+        gapDaysText: document.getElementById('gapDays').value.trim(),
+        gapDays: parseGapDays(document.getElementById('gapDays').value.trim()),
+      };
+    }
+
+    function render() {
+      window.__renderDone = false;
+
+      const settings = getSettings();
+      const pagesEl = document.getElementById('pages');
+      pagesEl.innerHTML = '';
+
+      const allReviewStarts = computeAllReviewStarts(settings.startDate, settings.gapDays, DATA_ROWS);
+      const lastDate = allReviewStarts.length ? allReviewStarts[allReviewStarts.length - 1] : settings.startDate;
+      const numPages = pageCountForLastDate(settings.startDate, lastDate);
+
+      for (let pageIndex = 0; pageIndex < numPages; pageIndex++) {
+        pagesEl.appendChild(buildPage({
+          pageIndex,
+          startDate: settings.startDate,
+          title: settings.title,
+          showPageNumber: settings.showPageNumber,
+          maxReviewCount: settings.maxReviewCount,
+          manualGuide: settings.manualGuide,
+          allReviewStarts,
+        }));
+      }
+
+      window.__renderDone = true;
+    }
+
+    function saveSettingsToUrl() {
+      const s = getSettings();
+      const params = new URLSearchParams();
+      params.set('start', s.startDateValue);
+      params.set('title', s.title);
+      params.set('max', String(s.maxReviewCount));
+      params.set('page', String(s.showPageNumber));
+      params.set('guide', s.manualGuide);
+      params.set('gaps', s.gapDaysText);
+      history.replaceState({}, '', `${location.pathname}?${params.toString()}`);
+      alert('URLに設定を保存しました。');
+    }
+
+    function loadSettingsFromUrl() {
+      const params = new URLSearchParams(location.search);
+
+      if (params.get('start')) document.getElementById('startDate').value = params.get('start');
+      if (params.get('title')) document.getElementById('title').value = params.get('title');
+      if (params.get('max')) document.getElementById('maxReviewCount').value = params.get('max');
+      if (params.get('page')) document.getElementById('showPageNumber').value = params.get('page');
+      if (params.get('guide')) document.getElementById('manualGuide').value = params.get('guide');
+      if (params.get('gaps')) document.getElementById('gapDays').value = params.get('gaps');
+
+      const pdfMode = params.get('pdf') === '1';
+      if (pdfMode) {
+        document.getElementById('controlPanel').classList.add('hidden');
+        document.body.style.background = '#fff';
+      }
+    }
+
+    document.getElementById('renderBtn').addEventListener('click', render);
+    document.getElementById('printBtn').addEventListener('click', () => window.print());
+    document.getElementById('shareBtn').addEventListener('click', saveSettingsToUrl);
+
+    loadSettingsFromUrl();
+    render();
+  </script>
+</body>
+</html>
