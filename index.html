@@ -17,7 +17,6 @@
       --sun: #dc2626;
       --line: #444;
       --line-light: #999;
-      --guide: #cbd5e1;
       --paper-shadow: 0 10px 30px rgba(0,0,0,0.12);
       --font: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
     }
@@ -95,7 +94,11 @@
       font-size: 12px;
       color: #6b7280;
       margin-top: 8px;
-      line-height: 1.5;
+      line-height: 1.7;
+    }
+
+    .hint a {
+      color: inherit;
     }
 
     .pages {
@@ -154,18 +157,6 @@
     .cell.row-0 { border-bottom: 0.4mm solid var(--line); }
     .cell.sat { color: var(--sat); }
     .cell.sun { color: var(--sun); }
-
-    .cell.guide::after {
-      content: "・";
-      color: var(--guide);
-      font-size: 12px;
-      line-height: 1;
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
 
     .page-no {
       text-align: center;
@@ -230,18 +221,15 @@
         </div>
 
         <div class="field">
+          <label for="maxNumber">連番の上限</label>
+          <input id="maxNumber" type="number" min="1" max="999" value="22" />
+        </div>
+
+        <div class="field">
           <label for="showPageNumber">ページ番号</label>
           <select id="showPageNumber">
             <option value="false" selected>表示しない</option>
             <option value="true">表示する</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="manualGuide">手書きガイド</label>
-          <select id="manualGuide">
-            <option value="none">なし</option>
-            <option value="start-dot" selected>開始位置にだけ・</option>
           </select>
         </div>
 
@@ -254,13 +242,11 @@
       <div class="actions">
         <button id="renderBtn">再生成</button>
         <button id="printBtn">印刷 / PDF保存</button>
-        <button id="shareBtn" class="secondary">URLに設定を保存</button>
       </div>
 
       <div class="hint">
-        単に出力しているのみで、個人情報等は取得していません。<br>
-        間違い等気になること改善点があれば<a href="https://x.com/bottsu" target="_blank">xの私宛<a>にお願いします。
-        プログラムのCopyrightは私で、<a href="https://www.kenkyusha.co.jp/book/b10091291.html" target="_blank">スケジュール仕組みそのもののアイデアは薬袋先生</a>にあります。
+        → 間違いや改善点は <a href="https://x.com/bottsu" target="_blank" rel="noopener noreferrer">こちら</a><br>
+        → スケジュールの仕組みは薬袋先生のご発案です <a href="https://www.kenkyusha.co.jp/book/b10091291.html" target="_blank" rel="noopener noreferrer">こちら</a>
       </div>
     </div>
 
@@ -337,7 +323,7 @@
       return div;
     }
 
-    function buildPage({ pageIndex, startDate, title, showPageNumber, maxReviewCount, manualGuide, allReviewStarts }) {
+    function buildPage({ pageIndex, startDate, title, showPageNumber, maxReviewCount, maxNumber, allReviewStarts }) {
       const paper = document.createElement('section');
       paper.className = 'paper';
 
@@ -350,7 +336,6 @@
       grid.className = 'grid';
 
       const firstDateOnPage = addDays(startDate, pageIndex * DATA_COLS);
-      const pageLastDate = addDays(firstDateOnPage, DATA_COLS - 1);
       const autoRows = Math.min(maxReviewCount, DATA_ROWS, allReviewStarts.length);
 
       for (let row = 0; row < ROWS_TOTAL; row++) {
@@ -385,15 +370,9 @@
           if (rowIdx < autoRows) {
             const rowStart = allReviewStarts[rowIdx];
             const delta = diffDays(currentDate, rowStart);
-            grid.appendChild(cell(delta >= 0 ? String(delta + 1) : '', classes));
+            const value = delta >= 0 ? (delta + 1) : null;
+            grid.appendChild(cell(value !== null && value <= maxNumber ? String(value) : '', classes));
           } else {
-            if (manualGuide === 'start-dot' && rowIdx < allReviewStarts.length) {
-              const rowStart = allReviewStarts[rowIdx];
-              if (rowStart >= firstDateOnPage && rowStart <= pageLastDate) {
-                const colOffset = diffDays(rowStart, firstDateOnPage);
-                if (col === colOffset + 1) classes.push('guide');
-              }
-            }
             grid.appendChild(cell('', classes));
           }
         }
@@ -417,9 +396,8 @@
         startDateValue,
         title: document.getElementById('title').value.trim(),
         maxReviewCount: Math.max(1, Math.min(14, Number(document.getElementById('maxReviewCount').value || 10))),
+        maxNumber: Math.max(1, Number(document.getElementById('maxNumber').value || 22)),
         showPageNumber: document.getElementById('showPageNumber').value === 'true',
-        manualGuide: document.getElementById('manualGuide').value,
-        gapDaysText: document.getElementById('gapDays').value.trim(),
         gapDays: parseGapDays(document.getElementById('gapDays').value.trim()),
       };
     }
@@ -442,25 +420,12 @@
           title: settings.title,
           showPageNumber: settings.showPageNumber,
           maxReviewCount: settings.maxReviewCount,
-          manualGuide: settings.manualGuide,
+          maxNumber: settings.maxNumber,
           allReviewStarts,
         }));
       }
 
       window.__renderDone = true;
-    }
-
-    function saveSettingsToUrl() {
-      const s = getSettings();
-      const params = new URLSearchParams();
-      params.set('start', s.startDateValue);
-      params.set('title', s.title);
-      params.set('max', String(s.maxReviewCount));
-      params.set('page', String(s.showPageNumber));
-      params.set('guide', s.manualGuide);
-      params.set('gaps', s.gapDaysText);
-      history.replaceState({}, '', `${location.pathname}?${params.toString()}`);
-      alert('URLに設定を保存しました。');
     }
 
     function loadSettingsFromUrl() {
@@ -469,8 +434,8 @@
       if (params.get('start')) document.getElementById('startDate').value = params.get('start');
       if (params.get('title')) document.getElementById('title').value = params.get('title');
       if (params.get('max')) document.getElementById('maxReviewCount').value = params.get('max');
+      if (params.get('maxnum')) document.getElementById('maxNumber').value = params.get('maxnum');
       if (params.get('page')) document.getElementById('showPageNumber').value = params.get('page');
-      if (params.get('guide')) document.getElementById('manualGuide').value = params.get('guide');
       if (params.get('gaps')) document.getElementById('gapDays').value = params.get('gaps');
 
       const pdfMode = params.get('pdf') === '1';
@@ -482,7 +447,6 @@
 
     document.getElementById('renderBtn').addEventListener('click', render);
     document.getElementById('printBtn').addEventListener('click', () => window.print());
-    document.getElementById('shareBtn').addEventListener('click', saveSettingsToUrl);
 
     loadSettingsFromUrl();
     render();
