@@ -1,50 +1,64 @@
-import { chromium } from "playwright";
-import fs from "fs";
-import path from "path";
-import { pathToFileURL } from "url";
+name: Render PDF
 
-const start = process.env.START_DATE || "2026-03-17";
-const title = process.env.TITLE || "暗記シート";
-const max = process.env.MAX_REVIEW_COUNT || "10";
-const maxNumber = process.env.MAX_NUMBER || "22";
-const page = process.env.SHOW_PAGE_NUMBER || "false";
-const gaps = process.env.GAP_DAYS || "1,3,5,8,12,17,20,21,21,21,21,21,21";
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "開始日 (YYYY-MM-DD)"
+        required: true
+        default: "2026-03-17"
+      title:
+        description: "タイトル"
+        required: true
+        default: "薬袋式暗記シート"
+      max:
+        description: "自動記載する回数"
+        required: true
+        default: "10"
+      maxnum:
+        description: "連番の上限"
+        required: true
+        default: "22"
+      page:
+        description: "ページ番号 (true / false)"
+        required: true
+        default: "false"
+      gaps:
+        description: "間隔（カンマ区切り）"
+        required: true
+        default: "1,3,5,8,12,17,20,21,21,21,21,21,21"
 
-const outDir = path.resolve("output");
-fs.mkdirSync(outDir, { recursive: true });
+jobs:
+  render:
+    runs-on: ubuntu-latest
 
-const htmlPath = path.resolve("index.html");
-const url = new URL(pathToFileURL(htmlPath));
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-url.searchParams.set("start", start);
-url.searchParams.set("title", title);
-url.searchParams.set("max", max);
-url.searchParams.set("maxnum", maxNumber);
-url.searchParams.set("page", page);
-url.searchParams.set("gaps", gaps);
-url.searchParams.set("pdf", "1");
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-const safeDate = start.replaceAll("-", "");
-const outPath = path.join(outDir, `memorization_schedule_${safeDate}.pdf`);
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
 
-const browser = await chromium.launch();
-const pageObj = await browser.newPage();
+      - name: Render PDF
+        run: node scripts/render-pdf.mjs
+        env:
+          START_DATE: ${{ inputs.start }}
+          TITLE: ${{ inputs.title }}
+          MAX_REVIEW_COUNT: ${{ inputs.max }}
+          MAX_NUMBER: ${{ inputs.maxnum }}
+          SHOW_PAGE_NUMBER: ${{ inputs.page }}
+          GAP_DAYS: ${{ inputs.gaps }}
 
-await pageObj.goto(url.toString(), { waitUntil: "load" });
-await pageObj.waitForFunction(() => window.__renderDone === true);
-
-await pageObj.pdf({
-  path: outPath,
-  format: "A4",
-  landscape: true,
-  printBackground: true,
-  margin: {
-    top: "0mm",
-    right: "0mm",
-    bottom: "0mm",
-    left: "0mm",
-  },
-});
-
-await browser.close();
-console.log(`saved: ${outPath}`);
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memorization-pdf
+          path: output/*.pdf
