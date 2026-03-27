@@ -1,0 +1,64 @@
+name: Render PDF
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "開始日 (YYYY-MM-DD)"
+        required: true
+        default: "2026-03-17"
+      title:
+        description: "タイトル"
+        required: true
+        default: "薬袋式暗記シート"
+      max:
+        description: "自動記載する回数"
+        required: true
+        default: "10"
+      guide:
+        description: "手書きガイド (none / start-dot)"
+        required: true
+        default: "start-dot"
+      page:
+        description: "ページ番号 (true / false)"
+        required: true
+        default: "false"
+      gaps:
+        description: "間隔（カンマ区切り）"
+        required: true
+        default: "1,3,5,8,12,17,20,21,21,21,21,21,21"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Render PDF
+        run: node scripts/render-pdf.mjs
+        env:
+          START_DATE: ${{ inputs.start }}
+          TITLE: ${{ inputs.title }}
+          MAX_REVIEW_COUNT: ${{ inputs.max }}
+          MANUAL_GUIDE: ${{ inputs.guide }}
+          SHOW_PAGE_NUMBER: ${{ inputs.page }}
+          GAP_DAYS: ${{ inputs.gaps }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memorization-pdf
+          path: output/*.pdf
